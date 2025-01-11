@@ -1,0 +1,149 @@
+\documentclass[ 11pt]{article}
+\usepackage[a4paper, total={6in, 8in}]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage[export]{adjustbox}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\graphicspath{ {./pictures/} }
+\usepackage[font=small,labelfont=bf]{caption}
+%\setlength{\parindent}{1cm}
+\usepackage [english]{babel}
+\usepackage [autostyle, english = american]{csquotes}
+\def\mystrut#1{\rule{0cm}{#1}}  % E.g. 0.4cm
+\usepackage{subcaption}
+\usepackage[hyphens]{url}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{adjustbox}
+% Includes References in the table of contents.
+\usepackage[nottoc,numbib]{tocbibind} 
+% This sets up the notation for theorems
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[theorem]
+\newtheorem{lemma}[theorem]{Lemma}
+
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+
+% Martin Lotz LaTeX commands 
+\newcommand{\diff}[1]{\mathrm{d}#1}
+\newcommand{\R}{\mathbbm{R}}
+\newcommand{\Expect}{\mathbf{E}}
+\newcommand{\Prob}{\mathbf{P}}
+
+
+\title{R Project - Current Direction and Questions}
+\author{Thomas Higham}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+This document outlines the problem that my project will focus on, followed by questions and direction I'd like to discuss with my supervisor Martin Lotz.
+
+\section{Introduction to Problem}
+
+We study transition paths, the path that a Markov process makes between two sets. Consider a stochastic process with two disjoint subsets $A$ and $B$ in the dynamical system. We want to understand the dynamics of a particle moving from set $A$ to set $B$ in a stochastic process. In particular, we study the stochastic process $\{X_t\}_{t\in T}$ governed by the stochastic differential equation (SDE)
+\begin{equation}\label{eq:SDE}
+ \diff{X_t} = b(X_t)\diff{t}+\sqrt{2}\diff{W_t},
+\end{equation}
+where $W_t$ is a standard Brownian motion. 
+Each random variable $X_t$ has a probability density $\rho_t$ that evolves according to the Fokker-Planck equation
+\begin{equation}\label{eq:FPE}
+\partial_t \rho = \nabla \cdot (-b(x)\rho+\nabla \rho).
+\end{equation}
+The SDE~\eqref{eq:SDE} defines a Markov process with infinitesimal generator
+\begin{equation}\label{eq:generator}
+  Lf = b\cdot \nabla f+\Delta f
+\end{equation}
+and~\eqref{eq:FPE} is equivalent to $\partial_t \rho = L^*\rho$, where $L^*$ is the adjoint of $L$. 
+
+We define the sets
+\begin{align*}
+ \tau_S = \inf \{ t>0 \ | \ X_t\in S\}, \quad
+ \tau_S^+ = \inf_{s>0} \{ s \ |\ X_{t+s}\in S \}, \quad
+ \tau_S^- = \sup_{s<0} \{ s \ |\ X_{t+s}\in S\}
+\end{align*}
+for a given set $S$. These represent the first time a stochastic process reaches the set $S$,  the next time we reach S in the future, and the last time we hit $S$ in the past. The latter two expressions needs to be conditioned on $X_t = x$.
+
+We are interested in the probability that the stochastic process goes to $B$ before going to $A$, and the probability that it last came from $A$ after coming from $B$. We define the forward and backward committor functions, $q^+$ and $q^-$, as
+\begin{align*}
+  q^+(x) = P(\tau_B^+ < \tau_A^+ \ |\ X_t = x),
+ \quad q^-(x) = P(\tau_{B}^- < \tau_{A}^-| X_t = x).
+\end{align*} 
+These are conditional probability densities and can be found by solving the discrete Dirichlet problem
+$$\begin{cases}
+   Lq^+(x) = 0 & \forall x \in (A \cup B)^c,  \\
+   \ q^+(x) =0, & \forall x \in A, \\
+   \ q^+(x)=1, & \forall x \in B,
+\end{cases}$$
+and
+$$\begin{cases}
+   \bar Lq^-(x) = 0, & \forall x \in (A\cup B)^c,\\ 
+   q^-(x)=1, & \forall x \in A, \\
+    q^-(x)=0 & \forall x \in B
+\end{cases}$$
+(where $\bar L$ is the generator of the reverse process). This uses the same operator as the generator in equation (\ref{eq:generator}).  Of particular
+interest is the probability density of reactive trajectories
+\begin{equation*}
+  \rho_\text{react}(x) = q^-(x)\rho(x)q^+(x)
+\end{equation*}
+which is the probability of coming from $A$ last, being at $x$, and going to
+$B$ next. This quantity peaks at regions where trajectories transitioning
+from $A$ to $B$ spend most of their time. They are therefore called
+dynamical bottlenecks.
+If we had a discrete Markov chain then there would be finitely many points in the subset $(A \cup B)^c$ and the solution could be solved by a linear system. In a continuous setting these systems can be computationally expensive for traditional PDE solvers. This is where neural operators can help, as they learn the infinite dimensional operator and once trained can be used to make fast evaluations of the solution. 
+
+\section{Discussion Questions}
+
+\begin{itemize}
+    \item My current formulation for solving for $q^+$ is as follows:
+
+    We consider the following Fokker-Planck equation on the space $\Omega$.
+\begin{align*} \label{FPE_Formulation}
+    b(x)\cdot \nabla u(x) + \Delta u(x) &= 0 \quad  x \in (A \cup B)^c \\
+    u(x) & = 0 \quad x \in \partial A  \\
+    u(x) & = 1 \quad x \in \partial B
+\end{align*}
+and we want to learn the coefficient to solution mapping $b \mapsto u$.
+
+What isn't clear to me is whether we have continuity at the boundaries - my extension of the solution for B.Cs might not be physically correct. Another question is how to treat the boundaries that are not at $A$ or $B$, i.e the "sides" of the domain: should these be treated as Neumann boundaries? 
+
+\item How do I deal with irregular domain shapes?
+
+As far as I understand, the two key things that determine the solution are the domain and the drift coefficient $b(x)$. I think it's important that my neural operator can predict solutions on arbitrary domain shapes and not just solutions on a square, which is the standard in most papers I've read.
+
+My idea is to still train on a square but enforce the boundary conditions by modifying the input data that is passed into first layer of the neural network. Specifically I will force  $0$ and $1$ on the respective boundaries for the input layer. Then although I am training on a square, I can focus on solutions on the domain of interest within the square.
+
+I considered other ways of going about this by transforming irregular domains to a square but this is both complicated and will probably work badly when it comes to spherical domain shapes like a globe.
+
+If I do enforce boundary conditions when inputting data I will need to make sure I train the operator on domains of different shapes so that it can generalise well. It's not clear to me that this is a technique that would work well for neural operators as I can't find any work where it has been done. What do you think?
+
+\item Which Neural Operator architecture to choose?
+
+I think graph neural operators are the most appropriate as I am modelling the dynamics of a stochastic process. Certainly in the discrete space model, a network is an appropriate way to model the transition paths so I think in the extension to continuum graph neural operators make the most sense. In particular I will try to use a multipole graph neural operator implementation as this is better at capturing long range interactions between points which I think is important given the role the domain shape plays in determining the conditional probabilities $u^+$.
+\item What problem to apply to?
+
+I've spent a lot of time looking for applications but I've not found a great deal from existing papers.
+Some of the ideas that Tobias Grafke offered were interesting. Whether I apply my model to the gulf stream or to the ice albedo affect, I think irregular domain shapes can be expected.  
+
+\item Once I have an application how do I get training data?
+
+Typically training data either comes from physical experiments or generating random functions in the input space and using PDE solvers to get discretised solutions. Despite being discretised, graph neural operators still learn a discretisation invariant solution due to the way kernel operations are evaluated. 
+
+If I do train my operator on domains with different shapes this could lead to inaccurate solutions from the chosen PDE solver and could be computationally demanding. If I do go down this route I will potentially get advice from Tom Montenegro-Johnson as he has previously taught me on a numerical PDE solver course. 
+
+\item How do I approach calculating $q^-$?
+
+I haven't looked into how the generator for the reverse process $\bar{L}$ relates to $Lf = b\cdot \nabla f+\Delta f $. I hope this is a similar elliptic PDE so that I can generate an analogous neural operator. 
+ 
+\end{itemize}
+
+
+\end{document}
