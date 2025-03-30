@@ -24,7 +24,7 @@ print(f"Using device: {device}")
 # LOAD AND PREPARE DATA
 # ===============================
 class PDEOperatorDataset(Dataset):
-    def __init__(self, grouped_data, grid_size=16):
+    def __init__(self, grouped_data, grid_size=32):
         self.grouped_data = grouped_data
         self.grid_size = grid_size
 
@@ -98,7 +98,9 @@ class FNO2D(nn.Module):
 
         # Final linear layers
         x = x.permute(0, 2, 3, 1)  # [B, 16, 16, width]
-        x = self.fc1(x).relu()
+        # x = self.fc1(x).gelu() #changed to gelu from relu
+        x = F.gelu(self.fc1(x))  # Correct: applying GELU via the functional API
+
         x = self.fc2(x)
         return x.permute(0, 3, 1, 2)  # [B, out_channels, 16, 16]
 
@@ -106,7 +108,7 @@ class FNO2D(nn.Module):
 # ===============================
 # LOAD CSV AND CREATE DATASET
 # ===============================
-def load_data(csv_path, grid_size=16):
+def load_data(csv_path, grid_size=32):
     # Load CSV
     data = pd.read_csv(csv_path)
 
@@ -120,54 +122,88 @@ def load_data(csv_path, grid_size=16):
     return dataloader
 
 
-# ===============================
-# TRAINING LOOP
-# ===============================
-def train_model(model, dataloader, num_epochs=50, lr=0.001):
+# # ===============================
+# # TRAINING LOOP
+# # ===============================
+# def train_model(model, dataloader, num_epochs=200, lr=0.001):
+#     optimizer = optim.Adam(model.parameters(), lr=lr)
+#     criterion = nn.MSELoss()
+
+#     for epoch in range(num_epochs):
+#         model.train()
+#         epoch_loss = 0.0
+
+#         for batch_idx, (x, y) in enumerate(dataloader):
+#             x, y = x.to(device), y.to(device).unsqueeze(1)
+
+#             # Forward pass
+#             outputs = model(x)
+#             loss = criterion(outputs, y)
+
+#             # Backpropagation
+#             optimizer.zero_grad()
+#             loss.backward()
+#             optimizer.step()
+
+#             epoch_loss += loss.item()
+
+#         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss / len(dataloader):.6f}")
+
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
+def train_model(model, dataloader, num_epochs=75, lr=0.001, lr_final=1e-5):
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss()
-
+    
+    # Reduce LR when loss plateaus
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, min_lr=lr_final)
+    
     for epoch in range(num_epochs):
         model.train()
         epoch_loss = 0.0
-
+        
         for batch_idx, (x, y) in enumerate(dataloader):
             x, y = x.to(device), y.to(device).unsqueeze(1)
-
+            
             # Forward pass
             outputs = model(x)
             loss = criterion(outputs, y)
-
+            
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+            
             epoch_loss += loss.item()
-
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss / len(dataloader):.6f}")
-
-
+        
+        avg_loss = epoch_loss / len(dataloader)
+        current_lr = optimizer.param_groups[0]['lr']
+        
+        # Update LR based on validation loss
+        scheduler.step(avg_loss)
+        
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.6f}, LR: {current_lr:.6e}")
 # ===============================
 # MAIN FUNCTION
 # ===============================
 def main():
     # Path to your CSV file
-    csv_path = "training_data_16_not_square.csv"  # Updated path to your data
+    csv_path = "train_data_32_transform_5000.csv"  # Updated path to your data
 
     # Load data
     dataloader = load_data(csv_path)
 
     # Initialize model with 5 input channels instead of 4
-    model = FNO2D(in_channels=5, out_channels=1, modes1=16, modes2=16, width=64).to(device)
+    model = FNO2D(in_channels=5, out_channels=1, modes1=20, modes2=20, width=256).to(device)
 
     # Train the model
     train_model(model, dataloader)
 
     # Save the model after training
-    torch.save(model.state_dict(), 'model_16_not_square.pth')
+    torch.save(model.state_dict(), 'data_32_transform_5000_test_1_2.pth')
     print('Model saved successfully!')
 
 # Run main if script is executed
 if __name__ == "__main__":
     main()
+
