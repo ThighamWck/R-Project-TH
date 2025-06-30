@@ -17,6 +17,7 @@ from Finite_difference_forward_comittor import solve_forward_committor_2D
 from Finite_difference_backwards_committor import solve_backwards_committor_2D
 from Trig_polynomial_boundary import generate_trig_functions
 from turbulent_velocity_field import turbulent_velocity_field
+import matplotlib.pyplot as plt
 
 def generate_training_2(num_solutions, grid_size):
     """
@@ -27,7 +28,7 @@ def generate_training_2(num_solutions, grid_size):
     #Setting up data list
     data_list = []
     #random seed to make training data reproducible
-    np.random.seed(220325)  #training data
+    np.random.seed(290625)  #training data
     #np.random.seed(2203252)  #test data
     #Setting minimal distance between boundary parametrisations phi and psi
     eps_trig = 0.3
@@ -73,7 +74,7 @@ def generate_training_2(num_solutions, grid_size):
             return Xdash
                 
         #generate random vector field b(x,y) and define btilde(f(x,y),y) = b(f^{-1}(x,y),y) so in correct coords
-        b_x , b_y = turbulent_velocity_field(eps_1, eps_2, Reynolds = 10000, L = 0.2, nu = 0.001)
+        b_x , b_y = turbulent_velocity_field(eps_1, eps_2, Reynolds = 10000, L = 0.2, nu = 0.00025)
         def btilde_x(x,y):
             # Reshape meshgrid points into format needed by RegularGridInterpretor
             points = anp.vstack(( x.flatten(), y.flatten())).T
@@ -85,7 +86,7 @@ def generate_training_2(num_solutions, grid_size):
         
         # reason for this is step size is 1/15 between [0,1] as (0, 1/15,... 14/15, 1).
         # Define the 311x311 grid - easy to identify with a coarser 32 x 32 grid when training.
-        n_fine = (grid_size-1)*10 + 1
+        n_fine = (grid_size-1)*8 + 1
 
         #Solving for forward committor
         qplus, X1, Y1 = solve_forward_committor_2D(phi, psi, btilde_x, btilde_y, N= (n_fine-2)) #Nx and Ny count num of interior points
@@ -93,6 +94,15 @@ def generate_training_2(num_solutions, grid_size):
         qminus, X2, Y2 = solve_backwards_committor_2D(phi, psi, btilde_x, btilde_y, N = (n_fine-2))
         #Committor function (including domain scaling from steady advection diffusion)
         rho = qplus * qminus / Omega
+        # Inversing the x coordinate transform
+        Xdash = anp.vectorize(phi)(Y1) + X1*(anp.vectorize(psi)(Y1) - anp.vectorize(phi)(Y1))
+        plt.figure(figsize=(10, 8))
+        plt.contourf(Xdash, Y1, rho, levels=500, cmap='coolwarm')
+        plt.colorbar(label="u(x,y)")
+        plt.title("Solution of 2D committor function")
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.show()
       # Create a meshgrid of coarse indices 
         coarse_indices = np.linspace(0, n_fine - 1, grid_size, dtype=int)
         coarse_indices_i, coarse_indices_j = np.meshgrid(coarse_indices, coarse_indices)
@@ -125,6 +135,6 @@ def generate_training_2(num_solutions, grid_size):
     array_data = np.array(data_list)
     columns = ["solution_id", "x_ij", "y_ij", "b1", "b2", "finv_val", "rho_val"]
 
-    np.savez_compressed("290625_train_data_32_transform_10000.npz", 
+    np.savez_compressed("300625_train_data_32_transform_10000_1.npz.npz", 
                    data=array_data, columns=columns)
     return
