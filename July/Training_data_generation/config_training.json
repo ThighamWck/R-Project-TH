@@ -1,0 +1,11 @@
+{
+    "training": {
+        "grid_size": 32,
+        "data_size": 1
+    },
+
+    "output": {
+        "data_save_path": "test.npz"
+    }
+
+} 
