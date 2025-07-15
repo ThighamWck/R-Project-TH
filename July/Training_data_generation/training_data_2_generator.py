@@ -133,7 +133,7 @@ def generate_training_2():
 
                 # Get the u value at the corresponding indices in the original array
                 rho_val = rho[coarse_indices_i[i,j], coarse_indices_j[i,j]]
-                data_list.append([solution_id + 15000, x_ij, y_ij, b1, b2, finv_val, rho_val])
+                data_list.append([solution_id, x_ij, y_ij, b1, b2, finv_val, rho_val])
 
     # # Create DataFrame
     # df = pd.DataFrame(data_list, columns=["solution_id", "x", "y", "b1", "b2", "finv", "rho"])
